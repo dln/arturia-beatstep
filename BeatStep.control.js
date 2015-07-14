@@ -4,23 +4,22 @@ loadAPI(1);
 
 load("Extensions.js");
 
-host.defineController("Arturia", "BeatStep", "1.0", "6258c710-4989-11e4-916c-0800200c9a66", "Bitwig");
+host.defineController("Arturia", "BeatStep (dln)", "1.0", "4db7d4cc-9023-4fa0-9ecf-c2202d9d96dd", "Bitwig");
 host.defineMidiPorts(1, 1);
 host.addDeviceNameBasedDiscoveryPair(["Arturia BeatStep"], ["Arturia BeatStep"]);
 host.addDeviceNameBasedDiscoveryPair(["Arturia BeatStep MIDI 1"], ["Arturia BeatStep MIDI 1"]);
 
 var bst = null;
 
-
 var LOWEST_CC = 1;
 var HIGHEST_CC = 119;
 
 function BeatStep() {
    this.midiPort = host.getMidiInPort(0).createNoteInput("KeyLab", "?0????");
-	this.midiPort.setShouldConsumeEvents(false);
-	this.midiPort.assignPolyphonicAftertouchToExpression(0, NoteExpression.TIMBRE_UP, 2);
+   this.midiPort.setShouldConsumeEvents(false);
+   this.midiPort.assignPolyphonicAftertouchToExpression(0, NoteExpression.TIMBRE_UP, 2);
 
- 	host.getMidiOutPort(0).setShouldSendMidiBeatClock(true);
+   host.getMidiOutPort(0).setShouldSendMidiBeatClock(true);
    host.getMidiInPort(0).setMidiCallback(onMidi);
    host.getMidiInPort(0).setSysexCallback(onSysex);
 
@@ -28,8 +27,18 @@ function BeatStep() {
    this.transport = host.createTransport();
    this.bTrack = host.createMainTrackBank(8, 2, 8);
    this.cTrack = host.createCursorTrack(2, 0);
-   this.cDevice = cTrack.createCursorDevice();
+   this.cDevice = host.createEditorCursorDevice();
+   this.cTrackSection = host.createCursorTrackSection(3, 0);
+   this.primaryInstrument = cTrack.getPrimaryInstrument();
 
+   for ( var p = 0; p < 8; p++) {
+		var macro = this.primaryInstrument.getMacro(p).getAmount();
+		var parameter = this.cDevice.getParameter(p);
+		macro.setIndication(true);
+		parameter.setIndication(true);
+		parameter.setLabel("P" + (p + 1));
+	}
+	
    // notification settings:
    this.notification = host.getNotificationSettings();
    this.notification.setShouldShowChannelSelectionNotifications(true);
@@ -40,7 +49,7 @@ function BeatStep() {
    this.notification.setShouldShowSelectionNotifications(true);
    this.notification.setShouldShowTrackSelectionNotifications(true);
    this.notification.setShouldShowValueNotifications(true);
-
+  
    // create preferences:
    this.prefs = host.getPreferences();
    this.doc = host.getDocumentState();
@@ -61,8 +70,14 @@ function BeatStep() {
    //States:
    this.isPlaying = false;
 
-   this.knobBank1 = [10, 74, 71, 76, 77, 93, 73, 75];
-   this.knobBank2 = [114, 18, 19, 16, 17, 91, 79, 72];
+   this.knobBank1 = [
+     10, 74, 71, 76,
+     114, 18, 19, 16,
+   ];
+   this.knobBank2 = [
+	 77, 93, 73, 75,
+	 17,  91, 79, 72,
+   ];
    this.knobVolume = 7;
    this.noteBank1 = [44, 45, 46, 47, 48, 49, 50, 51];
    this.noteBank2 = [36, 37, 38, 39, 40, 41, 42, 43];
@@ -112,6 +127,16 @@ function onMidi(status, data1, data2)
 
          switch(midi.channel()) {
             case 0:
+			   for (var i = 0; i < 8; i++) {
+                  if (midi.data1 === bst.knobBank1[i]) {
+					 bst.primaryInstrument.getMacro(i).getAmount().inc(inc, 128);
+                     return;
+                  }
+                  if (midi.data1 === bst.knobBank2[i]) {
+				     this.cDevice.getParameter(i).inc(inc, 128);
+                     return;
+                  }
+               }
                break;
             case 1:
                if (midi.data1 === bst.knobVolume) {
